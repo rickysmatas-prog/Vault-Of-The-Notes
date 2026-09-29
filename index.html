@@ -1,0 +1,282 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>Secret Code Page</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      transition: background-color 0.3s, color 0.3s;
+      padding: 20px;
+    }
+
+    /* Cyber Dark Mode Styles */
+    body.dark-mode {
+      background-color: #0d1117;
+      color: #00ff66;
+    }
+
+    body.dark-mode input, 
+    body.dark-mode button {
+      background-color: #161b22;
+      color: #00ff66;
+      border: 1px solid #00ff66;
+    }
+
+    body.dark-mode #secret-vault {
+      border-color: #00ff66 !important;
+      background-color: #12161f;
+    }
+
+    .theme-btn {
+      float: right;
+      padding: 8px 12px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+<button class="theme-btn" onclick="toggleDarkMode()">🌙 Toggle Cyber Dark Mode</button>
+
+<h1>Secret Code Page</h1>
+<p id="my-text">Type the secret password!</p>
+<p id="attempts-text">Wrong attempts: 0</p>
+
+<!-- Login input & button -->
+<input type="password" id="user-input" placeholder="Enter password...">
+<input type="checkbox" id="show-login-pass" onclick="togglePassVisibility('user-input')">
+<label for="show-login-pass">Show Password</label>
+<button id="submit-btn" onclick="checkPassword()">Submit</button>
+
+<br><br>
+
+<!-- Locked by default until logged in -->
+<label for="new-pass-input"><strong>Change Password:</strong></label><br>
+<input type="password" id="new-pass-input" placeholder="Enter new password..." oninput="checkStrength()" disabled>
+<input type="checkbox" id="show-new-pass" onclick="togglePassVisibility('new-pass-input')">
+<label for="show-new-pass">Show Password</label>
+<button id="change-pass-btn" onclick="changePassword()" disabled>Set New Password</button>
+<span id="strength-meter" style="font-weight: bold; margin-left: 10px;"></span>
+
+<br><br>
+
+<!-- Hidden Vault Area -->
+<div id="secret-vault" style="display: none; border: 2px solid green; padding: 15px; margin-top: 15px;">
+  <h2>🔓 Welcome to the Secret Vault!</h2>
+  <p>This confidential area is only accessible with the correct password.</p>
+  <p style="color: darkred; font-weight: bold;">⚠️ Auto-lock in: <span id="timer-text">10</span> seconds!</p>
+
+  <hr>
+  <h3>📜 Security Audit Log</h3>
+  <div id="audit-log" style="background: #1e1e1e; color: #00ff66; font-family: monospace; padding: 10px; height: 120px; overflow-y: auto; text-align: left; border-radius: 4px;">
+  </div>
+
+  <hr>
+  <h3>Secret Note Keeper</h3>
+  <input type="text" id="secret-note-input" placeholder="Write a secret note...">
+  <button onclick="saveSecretNote()">Save Note</button>
+  <button onclick="clearNotes()">Clear Notes</button>
+
+  <ul id="notes-list"></ul>
+</div>
+
+<br><br>
+<button onclick="resetSystem()">Reset System</button>
+
+<script>
+  let wrongAttempts = 0;
+  let countdownSeconds = 10;
+  let timerInterval;
+
+  // Retrieve stored password or default to "5598"
+  let secretPassword = localStorage.getItem("vaultPassword") || "5598";
+
+  // Load saved notes and logs when page loads
+  window.onload = function() {
+    loadSavedData();
+  };
+
+  function loadSavedData() {
+    // Load Notes
+    let savedNotes = JSON.parse(localStorage.getItem("vaultNotes")) || [];
+    let list = document.getElementById("notes-list");
+    list.innerHTML = "";
+    savedNotes.forEach(note => {
+      list.innerHTML += "<li>🔒 " + note + "</li>";
+    });
+
+    // Load Audit Log
+    let savedLogs = localStorage.getItem("vaultLogs");
+    let logBox = document.getElementById("audit-log");
+    if (savedLogs) {
+      logBox.innerHTML = savedLogs;
+    } else {
+      logBox.innerHTML = "<p style='margin: 3px 0;'>[SYSTEM INITIALIZED] Security Terminal Ready.</p>";
+    }
+  }
+
+  function toggleDarkMode() {
+    document.body.classList.toggle("dark-mode");
+    let isDark = document.body.classList.contains("dark-mode");
+    if (document.getElementById("secret-vault").style.display === "block") {
+      logAction("THEME CHANGED - Switched to " + (isDark ? "Cyber Dark Mode" : "Light Mode"));
+    }
+  }
+
+  function togglePassVisibility(inputId) {
+    let inputField = document.getElementById(inputId);
+    inputField.type = inputField.type === "password" ? "text" : "password";
+  }
+
+  function logAction(message) {
+    let logBox = document.getElementById("audit-log");
+    let time = new Date().toLocaleTimeString();
+    logBox.innerHTML += "<p style='margin: 3px 0;'> > [" + time + "] " + message + "</p>";
+    logBox.scrollTop = logBox.scrollHeight;
+    
+    // Save updated log in localStorage
+    localStorage.setItem("vaultLogs", logBox.innerHTML);
+  }
+
+  function checkStrength() {
+    let pass = document.getElementById("new-pass-input").value;
+    let meter = document.getElementById("strength-meter");
+
+    if (pass.length === 0) {
+      meter.textContent = "";
+    } else if (pass.length < 6) {
+      meter.textContent = "Weak 🔴";
+      meter.style.color = "red";
+    } else if (pass.length >= 6 && /[!@#$%^&*]/.test(pass)) {
+      meter.textContent = "Strong 🟢";
+      meter.style.color = "green";
+    } else {
+      meter.textContent = "Medium 🟡";
+      meter.style.color = "orange";
+    }
+  }
+
+  function saveSecretNote() {
+    let noteInput = document.getElementById("secret-note-input");
+    let noteValue = noteInput.value.trim();
+
+    if (noteValue !== "") {
+      // Update DOM
+      let list = document.getElementById("notes-list");
+      list.innerHTML += "<li>🔒 " + noteValue + "</li>";
+
+      // Save to localStorage array
+      let savedNotes = JSON.parse(localStorage.getItem("vaultNotes")) || [];
+      savedNotes.push(noteValue);
+      localStorage.setItem("vaultNotes", JSON.stringify(savedNotes));
+
+      logAction("Note created: '" + noteValue + "'");
+      noteInput.value = "";
+    }
+  }
+
+  function startCountdown() {
+    countdownSeconds = 10;
+    document.getElementById("timer-text").textContent = countdownSeconds;
+
+    clearInterval(timerInterval);
+
+    timerInterval = setInterval(function() {
+      countdownSeconds = countdownSeconds - 1;
+      document.getElementById("timer-text").textContent = countdownSeconds;
+
+      if (countdownSeconds <= 0) {
+        clearInterval(timerInterval);
+        logAction("Vault expired. Triggering auto-lock sequence...");
+        lockVaultUI();
+      }
+    }, 1000);
+  }
+
+  function checkPassword() {
+    let userInput = document.getElementById("user-input").value;
+
+    if (userInput === secretPassword) {
+      document.getElementById("my-text").textContent = "Access Granted!";
+      document.getElementById("my-text").style.backgroundColor = "green";
+      
+      document.getElementById("new-pass-input").disabled = false;
+      document.getElementById("change-pass-btn").disabled = false;
+      document.getElementById("secret-vault").style.display = "block";
+
+      logAction("ACCESS GRANTED - User logged in.");
+      startCountdown();
+    } else {
+      wrongAttempts = wrongAttempts + 1;
+      document.getElementById("my-text").textContent = "Access Denied!";
+      document.getElementById("my-text").style.backgroundColor = "red";
+      document.getElementById("attempts-text").textContent = "Wrong attempts: " + wrongAttempts;
+      
+      logAction("SECURITY ALERT - Invalid password attempt (" + wrongAttempts + "/3)");
+
+      if (wrongAttempts >= 3) {
+        document.getElementById("my-text").textContent = "LOCKED OUT! Too many attempts.";
+        document.getElementById("user-input").disabled = true;
+        document.getElementById("submit-btn").disabled = true;
+        logAction("SYSTEM LOCKOUT - Maximum failed attempts exceeded.");
+      }
+    }
+  }
+
+  function changePassword() {
+    let newPass = document.getElementById("new-pass-input").value;
+    if (newPass !== "") {
+      secretPassword = newPass;
+      
+      // Save password to localStorage
+      localStorage.setItem("vaultPassword", secretPassword);
+
+      document.getElementById("my-text").textContent = "Password updated successfully!";
+      document.getElementById("new-pass-input").value = "";
+      document.getElementById("strength-meter").textContent = "";
+      logAction("CREDENTIAL UPDATE - Vault master password changed.");
+    }
+  }
+
+  function lockVaultUI() {
+    clearInterval(timerInterval);
+    document.getElementById("user-input").value = "";
+    document.getElementById("my-text").textContent = "Type the secret password!";
+    document.getElementById("my-text").style.backgroundColor = "";
+
+    document.getElementById("new-pass-input").disabled = true;
+    document.getElementById("change-pass-btn").disabled = true;
+    document.getElementById("new-pass-input").value = "";
+    document.getElementById("strength-meter").textContent = "";
+
+    document.getElementById("secret-vault").style.display = "none";
+    document.getElementById("secret-note-input").value = "";
+  }
+
+  function resetSystem() {
+    lockVaultUI();
+    wrongAttempts = 0;
+    document.getElementById("user-input").disabled = false;
+    document.getElementById("submit-btn").disabled = false;
+    document.getElementById("attempts-text").textContent = "Wrong attempts: 0";
+
+    // Clear stored memory
+    localStorage.removeItem("vaultNotes");
+    localStorage.removeItem("vaultLogs");
+    localStorage.removeItem("vaultPassword");
+    secretPassword = "5598"; // Reset password back to default
+
+    document.getElementById("notes-list").innerHTML = "";
+    document.getElementById("audit-log").innerHTML = "<p style='margin: 3px 0;'>[SYSTEM INITIALIZED] Security Terminal Ready.</p>";
+  }
+
+  function clearNotes() {
+    document.getElementById("notes-list").innerHTML = "";
+    localStorage.removeItem("vaultNotes");
+    logAction("Vault cleared - All active secret notes purged.");
+  }
+</script>
+</body>
+</html>
